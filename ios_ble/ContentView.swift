@@ -1,97 +1,6 @@
 import SwiftUI
 import Foundation
 
-// MARK: - Inline Cook Request Models (temporary)
-// These are duplicated from CookRequestModels.swift to ensure they are in scope while
-// the project file (file system synchronized group) indexes the new file. Remove this
-// block once Xcode recognizes CookRequestModels.swift and the build succeeds.
-// struct CookCommand: Codable {
-//     let vesselId: Double
-//     let cookMode: Double
-//     let commandType: String
-//     let dataId: Double
-//     let foodType: Double
-//     let sousvideWaterTemperature: Double
-//     let initialWaterTemperature: Double
-// }
-
-// struct CookRequest: Codable {
-//     let command: CookCommand
-//     let deviceId: String
-//     let domainType: String
-//     let kind: String
-//     let serviceDeviceType: String
-//     let serviceType: String
-// }
-
-// extension CookRequest {
-//     static func build(sousVideTemp: Double, initialTemp: Double) -> CookRequest {
-//         let command = CookCommand(
-//             vesselId: 1.23456789E8,
-//             cookMode: 27.0,
-//             commandType: "cloud.smarthq.command.cooking.mode.multistage.sousvide.start",
-//             dataId: 3.3554433E7,
-//             foodType: 127.0,
-//             sousvideWaterTemperature: sousVideTemp,
-//             initialWaterTemperature: initialTemp
-//         )
-//         return CookRequest(
-//             command: command,
-//             deviceId: "00000000000000000000000000000000000000000000000000000000000000",
-//             domainType: "cloud.smarthq.domain.multistage.cookrequest.sousvide",
-//             kind: "service#command",
-//             serviceDeviceType: "cloud.smarthq.device.microwave.sousvide",
-//             serviceType: "cloud.smarthq.service.cooking.mode.multistage"
-//         )
-//     }
-// }
-
-// final class CookRequestSender {
-//     private let session: URLSession
-//     init(session: URLSession = .shared) { self.session = session }
-//     func send(request: CookRequest, to url: URL, accessToken: String, completion: @escaping (Result<Void, Error>) -> Void) {
-//         let encoder = JSONEncoder()
-//         encoder.outputFormatting = [.sortedKeys]
-//         do {
-//             let body = try encoder.encode(request)
-//             var urlRequest = URLRequest(url: url)
-//             urlRequest.httpMethod = "POST"
-//             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-//             urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-//             urlRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-//             urlRequest.httpBody = body
-//             session.dataTask(with: urlRequest) { data, response, error in
-//                 if let error = error { completion(.failure(error)); return }
-//                 guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-//                     let http = response as? HTTPURLResponse
-//                     let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
-//                     completion(.failure(NSError(domain: "CookRequestSender", code: http?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: bodyString])))
-//                     return
-//                 }
-//                 completion(.success(()))
-//             }.resume()
-//         } catch { completion(.failure(error)) }
-//     }
-// }
-
-// let dict: [String: Any] = [
-//   "command": [
-//     "vesselId": 1.23456789E8,
-//     "cookMode": 27.0,
-//     "commandType": "cloud.smarthq.command.cooking.mode.multistage.sousvide.start",
-//     "dataId": 3.3554433E7,
-//     "foodType": 127.0,
-//     "sousvideWaterTemperature": 150.0,
-//     "initialWaterTemperature": 75.0
-//   ],
-//   "deviceId": "00000000000000000000000000000000000000000000000000000000000000",
-//   "domainType": "cloud.smarthq.domain.multistage.cookrequest.sousvide",
-//   "kind": "service#command",
-//   "serviceDeviceType": "cloud.smarthq.device.microwave.sousvide",
-//   "serviceType": "cloud.smarthq.service.cooking.mode.multistage"
-// ]
-// let body = try JSONSerialization.data(withJSONObject: dict)
-
 let sender = CookRequestSender()
 
 func submitSousVide() {
@@ -130,6 +39,7 @@ struct ContentView: View {
     @State private var desiredTemperature: String = ""
     
     @StateObject private var vm = BluetoothViewModel()
+    @FocusState private var tempFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 16) {
@@ -146,7 +56,14 @@ struct ContentView: View {
             Spacer()
             HStack {
                 Text("Desired Temperature: ")
-                TextField("150 F",text: $desiredTemperature).frame(width: 50)
+                TextField("150", text: numericBinding)
+                    .keyboardType(.decimalPad)
+                    .frame(width: 70)
+                    .multilineTextAlignment(.trailing)
+                    .submitLabel(.done)
+                    .focused($tempFieldFocused)
+                    .onSubmit { tempFieldFocused = false; clampDesired() }
+                    .accessibilityLabel("Desired temperature in Fahrenheit")
             }
             Spacer()
             Spacer()
@@ -172,6 +89,12 @@ struct ContentView: View {
             }
         }
         .padding()
+        .toolbar { // iOS 15+ keyboard toolbar
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { tempFieldFocused = false; clampDesired() }
+            }
+        }
     }
     
     func calculatePowerProfile() {
@@ -186,4 +109,37 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+// MARK: - Numeric Input Helpers
+private extension ContentView {
+    var numericBinding: Binding<String> {
+        Binding<String>(
+            get: { desiredTemperature },
+            set: { newValue in
+                let filtered = sanitizeNumeric(input: newValue)
+                desiredTemperature = filtered
+            }
+        )
+    }
+
+    func sanitizeNumeric(input: String) -> String {
+        // Allow digits and at most one decimal point; drop other characters
+        var result = ""
+        var hasDecimal = false
+        for ch in input { 
+            if ch.isNumber { result.append(ch); continue }
+            if ch == "." && !hasDecimal { result.append(ch); hasDecimal = true }
+        }
+        // Avoid leading '.' without a zero
+        if result == "." { return "0." }
+        return result
+    }
+
+    func clampDesired() {
+        // Optional: ensure within reasonable cooking range 32F - 212F
+        guard let v = Double(desiredTemperature) else { return }
+        let clamped = min(max(v, 32), 212)
+        if v != clamped { desiredTemperature = String(format: "%.0f", clamped) }
+    }
 }
