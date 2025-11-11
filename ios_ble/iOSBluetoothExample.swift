@@ -11,7 +11,7 @@ class BluetoothViewModel: NSObject, ObservableObject {
     @Published var isConnected: Bool = false
 
     private let targetName = "XSC"
-    private let targetCharacteristicUUID = CBUUID(string: "E73C3003-B8BB-494E-86C5-01FD7341F217")
+    private let targetCharacteristicUUID = CBUUID(string: "E73C3003-B8BB-494E-86C5-01FD7341F217") // this is where you set the uuid for the temperature value
 
     private var central: CBCentralManager!
     private var targetPeripheral: CBPeripheral?
@@ -115,13 +115,49 @@ extension BluetoothViewModel: CBPeripheralDelegate {
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error { stateDescription = "Value update error: \(error)"; return }
-        guard let data = characteristic.value else { return }
-        let hexString = data.map { String(format: "%02x", $0) }.joined()
-        let number = UInt64(hexString, radix: 16)
-        lastNumberValue = number
-        hexValueHistory.append(hexString)
-        if hexValueHistory.count > 100 { hexValueHistory.removeFirst() }
+        if let error = error {
+            stateDescription = "Value update error: \(error)"
+            return
+        }
+        guard let data = characteristic.value else {
+            return
+        }
+        print("Raw data received: \(data.map { String(format: "%02x", $0) }.joined())")
+
+        // Swap endianness of the data
+        let swappedData = Data(data.reversed())
+        let swappedHexString = swappedData.map { String(format: "%02x", $0) }.joined()
+        print("Swapped endianness data: \(swappedHexString)")
+
+        let number = UInt64(swappedHexString, radix: 16)
+
+        guard let unwrappedNumber = number else {
+            stateDescription = "Failed to convert swapped hex string to number"
+            return
+        }
+
+//        var m: UInt64 = 0
+
+        // var m_10: UInt64 = 45
+        // var b_10: UInt64 = 950
+        // var number_10: UInt64 = unwrappedNumber * 10
+        // var result_10: UInt64 = (m_10 * number_10) - b_10
+        // var result: UInt64 = result_10 / 10
+        // lastNumberValue = result
+
+        var m_100: UInt64 = 22
+        var b_100: UInt64 = 2120
+        var number_100: UInt64 = unwrappedNumber
+        var result_100: UInt64 = (m_100 * number_100) + b_100
+        var result: UInt64 = result_100 / 100
+        lastNumberValue = result
+
+        // lastNumberValue = unwrappedNumber
+
+        hexValueHistory.append(swappedHexString)
+        if hexValueHistory.count > 100 {
+            hexValueHistory.removeFirst()
+        }
     }
 }
 
