@@ -46,12 +46,20 @@ struct ContentView: View {
             Text(vm.stateDescription).font(.headline)
             if let id = vm.discoveredPeripheralId { Text("Peripheral: \(id)") }
             if let rssi = vm.rssi { Text("RSSI: \(rssi)") }
-            if let num = vm.lastNumberValue { Text("Last number: \(num)") }
+            // if let num = vm.lastNumberValue { Text("Last number: \(num)") }
             
             Spacer()
             HStack {
                 Text("Current Temperature: ")
-                Text("100 F")
+                // Bind to latest number value from BluetoothViewModel if present
+                if let num = vm.lastNumberValue {
+                    Text("\(num) F")
+                        .accessibilityLabel("Current temperature \(num) Fahrenheit")
+                } else {
+                    Text("-- F")
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Current temperature unavailable")
+                }
             }
             Spacer()
             HStack {
@@ -63,6 +71,12 @@ struct ContentView: View {
                     .submitLabel(.done)
                     .focused($tempFieldFocused)
                     .onSubmit { tempFieldFocused = false; clampDesired() }
+                    // // Update desiredTemperature automatically when new sensor value arrives (optional behavior)
+                    // .onChange(of: vm.lastNumberValue) { newVal in
+                    //     // Only overwrite if field not actively edited (no focus) and we have a value
+                    //     guard !tempFieldFocused, let v = newVal else { return }
+                    //     desiredTemperature = String(v)
+                    // }
                     .accessibilityLabel("Desired temperature in Fahrenheit")
             }
             Spacer()
@@ -139,7 +153,7 @@ private extension ContentView {
     func clampDesired() {
         // Optional: ensure within reasonable cooking range 32F - 212F
         guard let v = Double(desiredTemperature) else { return }
-        let clamped = min(max(v, 32), 212)
+        let clamped = min(max(v, 32), 450)
         if v != clamped { desiredTemperature = String(format: "%.0f", clamped) }
     }
 }
