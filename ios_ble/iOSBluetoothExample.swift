@@ -136,23 +136,12 @@ extension BluetoothViewModel: CBPeripheralDelegate {
             return
         }
 
-//        var m: UInt64 = 0
-
-        // var m_10: UInt64 = 45
-        // var b_10: UInt64 = 950
-        // var number_10: UInt64 = unwrappedNumber * 10
-        // var result_10: UInt64 = (m_10 * number_10) - b_10
-        // var result: UInt64 = result_10 / 10
-        // lastNumberValue = result
-
         var m_100: UInt64 = 22
         var b_100: UInt64 = 2120
         var number_100: UInt64 = unwrappedNumber
         var result_100: UInt64 = (m_100 * number_100) + b_100
         var result: UInt64 = result_100 / 100
         lastNumberValue = result
-
-        // lastNumberValue = unwrappedNumber
 
         hexValueHistory.append(swappedHexString)
         if hexValueHistory.count > 100 {
