@@ -1,5 +1,10 @@
 import CoreBluetooth
 
+//  target name
+//  target uuid
+//  characteristic uuid
+
+
 // Core Bluetooth ViewModel (logic only) kept separate from UI.
 class BluetoothViewModel: NSObject, ObservableObject {
     @Published var stateDescription: String = "Initializing"
